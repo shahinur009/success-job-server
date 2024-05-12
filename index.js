@@ -36,7 +36,7 @@ async function run() {
     try {
         // collection here
         const jobsCollections = client.db('successJobs').collection('jobs')
-        const bidsCollections = client.db('successJobs').collection('bids')
+        const applyCollections = client.db('successJobs').collection('apply')
 
         app.get('/jobs', async (req, res) => {
             const result = await jobsCollections.find().toArray()
@@ -47,6 +47,18 @@ async function run() {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
             const result = await jobsCollections.findOne(query)
+            res.send(result);
+        })
+        //save apply data in database
+        app.post('/apply', async (req, res) => {
+            const applyData = req.body;
+            const result = await applyCollections.insertOne(applyData)
+            res.send(result);
+        })
+        //save job data in database
+        app.post('/job', async (req, res) => {
+            const jobData = req.body;
+            const result = await jobsCollections.insertOne(jobData)
             res.send(result);
         })
 
