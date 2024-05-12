@@ -107,6 +107,7 @@ async function run() {
             const result = await applyCollections.find(query).toArray()
             res.send(result);
         })
+        //jwt function here 
 
         // Send a ping to confirm a successful connection
         // await client.db("admin").command({ ping: 1 });
