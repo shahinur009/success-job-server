@@ -11,6 +11,7 @@ app.use(
     cors({
         origin: [
             "http://localhost:5173",
+            "http://localhost:5000",
             // "https://cardoctor-bd.web.app",
             // "https://cardoctor-bd.firebaseapp.com",
         ],
@@ -42,6 +43,15 @@ async function run() {
             const result = await jobsCollections.find().toArray()
             res.send(result)
         })
+        // get all data by a user
+        app.get('/jobs/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { 'buyer.email': email };
+            const result = await jobsCollections.find(query).toArray()
+            res.send(result);
+        })
+
+
         // job details data include by id
         app.get('/job/:id', async (req, res) => {
             const id = req.params.id;
@@ -60,6 +70,13 @@ async function run() {
             const jobData = req.body;
             const result = await jobsCollections.insertOne(jobData)
             res.send(result);
+        })
+        // delete data from data base.
+        app.delete('/job/:id', async (req, res) => {
+            const id = req.params.id
+            const query = { _id: new ObjectId(id) }
+            const result = await jobsCollections.deleteOne(query)
+            res.send(result)
         })
 
         // Send a ping to confirm a successful connection
