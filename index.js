@@ -30,6 +30,19 @@ const cookieOptions = {
     sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
 
 };
+const verifyToken = (req, res, next) => {
+    const token = req.cookies?.token;
+    if (!token) return res.status(401).send({ message: 'unauthorized access' })
+    if (token) {
+        jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+            if (err) {
+                return res.status(401).send({ message: 'unauthorized access' })
+            }
+            req.user = decoded
+            next()
+        })
+    }
+}
 
 
 
@@ -72,18 +85,12 @@ async function run() {
             res.send(result)
         })
         // get all data by a user
-        app.get('/jobs/:email', async (req, res) => {
-            const token = req.cookies?.token;
-            if (token) {
-                jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-                    if (err) {
-                        return console.log(err)
-                    }
-                    console.log(decoded)
-                })
-            }
-            console.log(token)
+        app.get('/jobs/:email', verifyToken, async (req, res) => {
+            const tokenEmail = req.user.email;
             const email = req.params.email;
+            if (tokenEmail !== email) {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
             const query = { 'buyer.email': email };
             const result = await jobsCollections.find(query).toArray()
             res.send(result);
@@ -118,8 +125,13 @@ async function run() {
         })
 
         // update data:
-        app.put('/job/:id', async (req, res) => {
+        app.put('/job/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
+            const tokenEmail = req.user.email;
+            const email = req.params.email;
+            if (tokenEmail !== email) {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
             const jobData = req.body
             const query = { _id: new ObjectId(id) }
             const options = { upsert: true }
@@ -132,15 +144,23 @@ async function run() {
             res.send(result)
         })
         // all applied jobs by email
-        app.get('/applied-jobs/:email', async (req, res) => {
+        app.get('/applied-jobs/:email', verifyToken, async (req, res) => {
+            const tokenEmail = req.user.email;
             const email = req.params.email;
+            if (tokenEmail !== email) {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
             const query = { email };
             const result = await applyCollections.find(query).toArray()
             res.send(result);
         })
         // get all post job request for db by job owner 
-        app.get('/applied-request/:email', async (req, res) => {
+        app.get('/applied-request/:email', verifyToken, async (req, res) => {
+            const tokenEmail = req.user.email;
             const email = req.params.email;
+            if (tokenEmail !== email) {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
             const query = { 'buyer.email': email };
             const result = await applyCollections.find(query).toArray()
             res.send(result);
