@@ -5,7 +5,7 @@ const cookieParser = require('cookie-parser')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const app = express();
-const port = process.env.PORT || 7000;
+const port = process.env.PORT || 5004;
 
 
 // middleware
@@ -32,16 +32,21 @@ const cookieOptions = {
 };
 const verifyToken = (req, res, next) => {
     const token = req.cookies?.token;
+
+    console.log(token)
+    console.log("==================")
     if (!token) return res.status(401).send({ message: 'unauthorized access' })
     if (token) {
         jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+            console.log(err)
             if (err) {
                 return res.status(401).send({ message: 'unauthorized access' })
             }
+            console.log(decoded)
             req.user = decoded
-            next()
         })
     }
+    next()
 }
 
 
@@ -107,6 +112,16 @@ async function run() {
         //save apply data in database
         app.post('/apply', async (req, res) => {
             const applyData = req.body;
+            const query = {
+                email: applyData.email,
+                jobId: applyData.jobId
+            }
+            const alreadyApplied = await applyCollections.findOne(query)
+            console.log(alreadyApplied)
+            if (alreadyApplied) {
+                return res.status(400).send('You already applied this job')
+            }
+
             const result = await applyCollections.insertOne(applyData)
             res.send(result);
         })
@@ -125,7 +140,7 @@ async function run() {
         })
 
         // update data:
-        app.put('/job/:id', verifyToken, async (req, res) => {
+        app.put('/job/:id/:email', verifyToken, async (req, res) => {
             const id = req.params.id;
             const tokenEmail = req.user.email;
             const email = req.params.email;
@@ -151,7 +166,10 @@ async function run() {
                 return res.status(403).send({ message: 'forbidden access' })
             }
             const query = { email };
-            const result = await applyCollections.find(query).toArray()
+            if (req.query.filter && req.query.filter != 'undefined') {
+                query['category'] = req.query.filter
+            }
+            let result = await applyCollections.find(query).toArray()
             res.send(result);
         })
         // get all post job request for db by job owner 
@@ -165,7 +183,35 @@ async function run() {
             const result = await applyCollections.find(query).toArray()
             res.send(result);
         })
-        //jwt function here 
+
+        // get all jobs data from database for pagination 
+        app.get('/all-jobs', async (req, res) => {
+            const size = parseInt(req.query.size);
+            const page = parseInt(req.query.page) - 1;
+            // console.log(size, page)
+            let query = {};
+            if (req.query.search) {
+                query = { job_title: { $regex: new RegExp(req.query.search, 'i') } };
+            }
+            console.log(query)
+            const result = await jobsCollections.find(query).skip(size * page).limit(size).toArray()
+            res.send(result)
+        })
+
+        // filter here
+        app.get('/applied-jobs', async (req, res) => {
+            const filter = req.query.filter;
+            let query = {}
+            if (filter) query = { category: filter }
+            // console.log(size, page)
+            const result = await jobsCollections.find(query).toArray()
+            res.send(result)
+        })
+        // get all jobs data from database for counting pagination 
+        app.get('/jobs-count', async (req, res) => {
+            const count = await jobsCollections.countDocuments()
+            res.send({ count })
+        })
 
         // Send a ping to confirm a successful connection
         // await client.db("admin").command({ ping: 1 });
@@ -174,11 +220,11 @@ async function run() {
 
     }
 }
-run().catch(console.dir);
+run().catch();
 
 
 app.get('/', (req, res) => {
-    res.send('success jobs running')
+    res.send('success jobs running on server')
 })
 app.listen(port, () => {
     console.log(`Success jobs server is running on port ${port}`)
