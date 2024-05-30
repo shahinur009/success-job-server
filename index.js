@@ -1,11 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const app = express();
-const port = process.env.PORT || 5004;
+const port = process.env.PORT || 5002;
 
 
 // middleware
@@ -13,9 +14,8 @@ app.use(
     cors({
         origin: [
             "http://localhost:5173",
-            // "http://localhost:5000",
-            // "https://cardoctor-bd.web.app",
-            // "https://cardoctor-bd.firebaseapp.com",
+            "https://success-jobs-7e686.web.app",
+            "https://success-jobs-7e686.firebaseapp.com",
         ],
         credentials: true,
         optionsSuccessStatus: 200,
@@ -23,6 +23,7 @@ app.use(
 );
 app.use(express.json())
 app.use(cookieParser())
+app.use(bodyParser.json());
 
 const cookieOptions = {
     httpOnly: true,
@@ -65,8 +66,10 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // collection here
+        const userCollections = client.db('successJobs').collection('users')
         const jobsCollections = client.db('successJobs').collection('jobs')
         const applyCollections = client.db('successJobs').collection('apply')
+
 
         // jwt token generate:
         app.post('/jwt', async (req, res) => {
@@ -83,10 +86,24 @@ async function run() {
                 maxAge: 0
             }).send({ success: true })
         })
-
+        //user related api
+        app.post('/users', async (req, res) => {
+            const user = req.body;
+            const query = { email: user?.email }
+            const existingUser = await userCollections.findOne(query)
+            if (existingUser) {
+                return res.send({ message: 'user already exist', insertedId: null })
+            }
+            const result = await userCollections.insertOne(user)
+            res.send(result);
+        })
 
         app.get('/jobs', async (req, res) => {
-            const result = await jobsCollections.find().toArray()
+            const { search } = req.body;
+            const query = search
+                ? { job_title: { $regex: search, $options: 'abc' } }
+                : {};
+            const result = await jobsCollections.find(query).toArray()
             res.send(result)
         })
         // get all data by a user
@@ -112,6 +129,7 @@ async function run() {
         //save apply data in database
         app.post('/apply', async (req, res) => {
             const applyData = req.body;
+            console.log(applyData)
             const query = {
                 email: applyData.email,
                 jobId: applyData.jobId
@@ -123,6 +141,15 @@ async function run() {
             }
 
             const result = await applyCollections.insertOne(applyData)
+
+            // update applied job count
+            const updateDoc = {
+                $inc: { applicants_number: 1 },
+            }
+            const jobQuery = { _id: new ObjectId(applyData.jobId) }
+
+            const updateAppliedCount = await jobsCollections.updateOne(jobQuery, updateDoc)
+            console.log(updateAppliedCount)
             res.send(result);
         })
         //save job data in database
